@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  reportA2AFraudDetection
+  
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 200
+
+Resources:
+  reportA2AFraudDetectionFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: reportA2AFraudDetection/
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Policies: 
+          - S3CrudPolicy:
+              BucketName: "*"
+      Events:
+        reportA2AFraudDetection:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /reportA2AFraudDetection
+            Method: get
+
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+Outputs:
+  reportA2AFraudDetectionApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/reportA2AFraudDetection/"
+  reportA2AFraudDetectionFunction:
+    Description: "reportA2AFraudDetectionFunction Lambda Function ARN"
+    Value: !GetAtt reportA2AFraudDetectionFunction.Arn
+  reportA2AFraudDetectionFunctionIamRole:
+    Description: "Implicit IAM Role created for reportA2AFraudDetection function"
+    Value: !GetAtt reportA2AFraudDetectionFunctionRole.Arn
