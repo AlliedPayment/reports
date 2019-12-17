@@ -3,9 +3,10 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "reportA2AFraudDetection"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-cwepqicuf31o"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1c53o3boqytv3"
 s3_prefix = "reportA2AFraudDetection"
 region = "us-east-1"
+profile = "allied.prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 

@@ -3,12 +3,24 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   reportA2AFraudDetection
   
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 200
+    Environment:
+      Variables:
+        DESTINATION_BUCKET: !Ref StoreS3Bucket
 
 Resources:
+  StoreS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    DeletionPolicy: Retain
+    
   reportA2AFraudDetectionFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -16,8 +28,11 @@ Resources:
       Handler: app.lambdaHandler
       Runtime: nodejs12.x
       Policies: 
-          - S3CrudPolicy:
-              BucketName: "*"
+        - AWSLambdaExecute
+        - S3FullAccessPolicy:
+            BucketName: "*"
+        - S3CrudPolicy:
+            BucketName: "*"
       Events:
         reportA2AFraudDetection:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
