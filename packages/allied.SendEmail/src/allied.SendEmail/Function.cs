@@ -14,6 +14,8 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using Amazon.S3.Util;
+using Scriban;
+using Scriban.Runtime;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -114,10 +116,63 @@ namespace allied.SendEmail
 
                             await S3Client.DownloadToFilePathAsync(s3Event.Bucket.Name, template, tFile, null,
                                 CancellationToken.None);
-                        }
-                        catch (Exception e)
+                            string templateData = File.ReadAllText(tFile, System.Text.Encoding.ASCII);
+
+
+
+                            var scriptObject1 = new ScriptObject();
+                            scriptObject1.Add("Name", s3Event.Bucket.Name);
+                            scriptObject1.Add("BucketName", s3Event.Bucket.Name);
+                            scriptObject1.Add("s3Event", s3Event);
+                            scriptObject1.Add("email", email);
+                            scriptObject1.Add("Subject", email.subject);
+                            scriptObject1.Add("To", email.to);
+                            scriptObject1.Add("From", email.from);
+
+                        scriptObject1.Add("Key", s3Event.Object.Key);
+                        
+                    var tc = new TemplateContext();
+                            tc.PushGlobal(scriptObject1);
+
+
+                        var scriban = Template.Parse(templateData);
+
+                            if (scriban.HasErrors)
+                            {
+                                foreach (var error in scriban.Messages)
+                                {
+                                    context.Logger.LogLine(error.Message);
+                                }
+                            }
+                            else
+                            {
+                                var result = scriban.Render(tc);
+                                email.body = result;
+                            }
+
+                            if (scriptObject1["Subject"] != email.subject)
+                            {
+                                email.subject=scriptObject1["Subject"];
+                                context.Logger.LogLine("SubjectAfter:" + scriptObject1["Subject"]);
+                            }
+                        if (scriptObject1["To"] != email.to)
+                            {
+                                email.to = scriptObject1["To"];
+                                context.Logger.LogLine("ToAfter:" + email.to);
+                            }
+                        if (scriptObject1["From"] != email.from)
+                            {
+                                email.from = scriptObject1["From"];
+                                email.reply = scriptObject1["From"];
+                                context.Logger.LogLine("FromAfter:" + email.from);
+                                context.Logger.LogLine("ReplyAfter:" + email.reply);
+                            }
+
+                    }
+
+                    catch (Exception e)
                         {
-                            context.Logger.LogLine(@"No template {template} found.");
+                            context.Logger.LogLine(@"No template {template} found. "+ e.Message);
                         }
                     }
 
