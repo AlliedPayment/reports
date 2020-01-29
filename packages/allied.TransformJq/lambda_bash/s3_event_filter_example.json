@@ -1,0 +1,25 @@
+{
+  "LambdaFunctionConfigurations": [
+    {
+      "Id": "s3eventtriggerslambda",
+      "LambdaFunctionArn": "WILL BE REPLACED BY lambda_bash.sh",
+      "Events": [
+        "s3:ObjectCreated:*"
+      ],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "suffix",
+              "Value": "thesuffix"
+            },
+            {
+              "Name": "prefix",
+              "Value": "theprefix"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
