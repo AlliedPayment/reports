@@ -70,7 +70,7 @@ A transformation defined within the "transforms" object will only run if the reg
 ### Notes on deployment
 There is a Makefile included in lambda_bash;  this file provides the commands to deploy, update, and setup configuration.
 | make target | Description |
-| - | - |
+|-------------|-------------|
 | make deploy | will deploy the lambda function and create a lambda role. |
 | make update | only update the transformJq script. |
 | make config | copy the transformJqConfig.json file to the bucket. |
