@@ -2,6 +2,9 @@
 
 This lambda function will transform a file within an s3 bucket and copy the results to another s3 bucket.  You can setup this function to be run via s3 events or invoked directly specifying a 'key' and 'bucket' parameter.
 
+In allieddev, the function is deployed here:
+https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions/transformJq?tab=configuration
+
 allied.TransformJq will attempt to read a configuration file /.allied/transformJqConfig.json.  This file defines a json object that contains a "transforms" object hash.  Each json object within the "transforms" defines a transformation, the key of the transform object is used to provide readers with a short name for each transformation.
 
 An example config is provided below.
@@ -46,6 +49,7 @@ A transformation defined within the "transforms" object will only run if the reg
    }
 }
 ```
+Please note: the regex's are proper regex as provided by grep.  As such you will need to make sure to .* instead of just *; or escape special characters like . etc.
 
 ## top level settings:
 
