@@ -1,0 +1,32 @@
+
+
+
+# allied.LambdaTransformJq
+
+```
+{
+	"transforms": {
+		"asd": {
+			"filterRegEx": ".*\\.json",
+			"jqTransform": ".[]",
+			"jqOutputName": "pretty-dude-[FILENAME].json"
+		},
+		"test": {
+			"filterRegEx": ".*\\.json",
+			"jqOutputName": "[FILENAME]-payments.csv",
+			"jqTransform": ".[2][0].Payment * .[2][0].EbillingInfo  | map(.) | @csv"
+		},
+		"dave": {
+			"filterRegEx": "dave.xml",
+			"jqTransform": "[2][0].Payment | with_entries(select(.) | to_entries | map(.key), map(.value) | @csv"
+		}
+	},
+	"zipIncludeSrcFile": true,
+	"deleteFromSrcBucket": 0,
+	"zipOutput": true,
+	"copyToBucket": "s3://allied-email-bucket"
+}
+```
+
+bash-lambda-layer/
+lambda_bash/
