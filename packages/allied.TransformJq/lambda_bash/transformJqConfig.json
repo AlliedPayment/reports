@@ -1,0 +1,24 @@
+{
+	"transforms": {
+		"asd": {
+			"filterRegEx": ".*\\.json",
+			"jqTransform": ".[]",
+			"jqOutputName": "pretty-dude-[FILENAME].json",
+			"deleteComplete": 0,
+			"zipContents": true,
+			"copyComplete": "s3://allied-email-bucket"
+		},
+		"test": {
+			"filterRegEx": ".*\\.json",
+			"jqOutputName": "[FILENAME]-payments.csv",
+			"jqTransform": ".[2][0].Payment * .[2][0].EbillingInfo  | map(.) | @csv",
+			"deleteComplete":  0
+		},
+		"dave": {
+			"filterRegEx": "dave.xml",
+			"jqTransform": "[2][0].Payment | with_entries(select(.) | to_entries | map(.key), map(.value) | @csv",
+			"deleteComplete":  0
+		}
+	}
+
+}
