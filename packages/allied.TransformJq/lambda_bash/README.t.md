@@ -104,5 +104,4 @@ Now look at the logs from the tail session.
 ### (ex. of using markdown_helper for inclusions)
 markdown_helper include --pristine README.t.md AUTHORS
 -- Horner , out.
-    15	David Horner <david.horner@alliedpayment.com>
-     6	davidhorner <david.horner@alliedpayment.com>
+@[:markdown](AUTHORS)
