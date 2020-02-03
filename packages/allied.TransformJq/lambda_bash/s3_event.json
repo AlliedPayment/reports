@@ -1,4 +1,6 @@
 {
+  "bucket": "allied-deploy",
+  "key": "example.json",
   "LambdaFunctionConfigurations": [
     {
       "Id": "s3eventtriggerslambda",

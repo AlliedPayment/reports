@@ -3,6 +3,7 @@
 # make a bucket.
 # aws s3 mb s3://allied-deploy
 # arn:aws:lambda:us-east-1:733408678024:layer:bash:1
+export LANG=C.UTF-8
 
 read_jq()
 {
@@ -14,6 +15,14 @@ read_jq()
     fi
     echo ${RET}
     return 1
+}
+
+echo_cmd()
+{ 
+    echo "cmd: $@"
+    RET=$($@)
+    retVal=$?
+    echo "exit: $retVal $RET"   
 }
 
 exit_s3result()
@@ -33,7 +42,7 @@ handler ()
     mkdir -p $EXPORT_FOLDER
 
     # bucket and key values come from s3 event or via bucket/key values in json provided.
-    if [ $EVENT_DATA ]; then
+    if [ ${#EVENT_DATA} -gt 0 ]; then
         BUCKET=$(read_jq "$EVENT_DATA" ".bucket")
         if [[ ${#BUCKET} -eq 0  ]] ; then
             BUCKET=$(read_jq "$EVENT_DATA" ".Records[0].s3.bucket.name")
@@ -64,6 +73,18 @@ handler ()
     [[ ! -f $WORK_FOLDER/$CONFIG_FILE ]] && exit_s3result 4 false "error: No transforms defined. (define a .allied/$CONFIG_FILE)"
     CONFIG=$(cat $WORK_FOLDER/$CONFIG_FILE)
 
+    SHOULD_DEL=$(read_jq "$CONFIG" '.deleteFromSrcBucket // 0')
+    COPY_TO_BUCKET=$(read_jq "$CONFIG" '.copyToBucket // 0')
+    ZIP_OUTPUT=$(read_jq "$CONFIG" '.zipOutput // 0')
+    
+    echo "TOPLEVEL FLAGS: del: $SHOULD_DEL copy: $COPY_TO_BUCKET zip: $ZIP_OUTPUT"
+
+
+    DEBUGLEVEL=$(read_jq "$CONFIG" '.debugLevel // 0')
+    #[ ${DEBUGLEVEL} -gt 0 ] && set +x && echo "DEBUGLEVEL ${DEBUGLEVEL} +x"
+    #[ ${DEBUGLEVEL} -gt 1 ] && set +u && echo "DEBUGLEVEL ${DEBUGLEVEL} +u"
+    #[ ${DEBUGLEVEL} -gt 2 ] && set +v && echo "DEBUGLEVEL ${DEBUGLEVEL} +v"
+
     INCLUDE_ORGINAL=$(read_jq "$CONFIG" '.zipIncludeSrcFile')
     WORKING_FILE=$WORK_FOLDER/$KEY
     if [ ${INCLUDE_ORGINAL} ]; then
@@ -83,24 +104,48 @@ handler ()
     #printf "%s\n" ${TRANSFORMS[@]}
     for t in ${TRANSFORMS[@]}
     do : 
-        JSON=$(jq -r ".transforms | .${t}" $WORK_FOLDER/$CONFIG_FILE)
+        JSON=$(jq -r ".transforms | .[\"${t}\"]" $WORK_FOLDER/$CONFIG_FILE)
         if [ ${#JSON} -gt 0 ]; then
             JQTRANSFORM=$(read_jq "${JSON}" ".jqTransform")
+            JQTRANSFORM_FILE=$(read_jq "${JSON}" ".jqTransformFile")
             JQOUTPUT=$(read_jq "${JSON}" ".jqOutputName")
             FILTER=$(read_jq "${JSON}" '.filterRegEx')
             if [ ${#FILTER} -gt 0 ]; then
                 TRANSFORM_APPLIES=$(echo $KEY | grep -c $FILTER)
-                if [ $TRANSFORM_APPLIES -gt 0 ]; then
-                    echo "TRANSFORM: ${t}($FILTER) is a match against $KEY; transforming \"${JQTRANSFORM}\""
+                if [[ $TRANSFORM_APPLIES -gt 0 && ${#JQTRANSFORM} -gt 0 ]]; then
 
-                    if [ ${#JQTRANSFORM} ]; then
-                        OUTPUTFILE="$WORK_FOLDER/[FILENAME].${t}.txt"
-                        if [ ${#JQOUTPUT} ]; then
-                            OUTPUTFILE="$EXPORT_FOLDER/$JQOUTPUT"
-                        fi    
-                        OUTPUTFILE=${OUTPUTFILE/\[FILENAME\]/${KEY_NAME}}
-                        $(jq -r "${JQTRANSFORM}" ${WORKING_FILE} > ${OUTPUTFILE})
+                    OUTPUTFILE="$WORK_FOLDER/[FILENAME].${t}.txt"
+                    if [ ${#JQOUTPUT} ]; then
+                        OUTPUTFILE="$EXPORT_FOLDER/$JQOUTPUT"
+                    fi    
+                    OUTPUTFILE=${OUTPUTFILE/\[FILENAME\]/${KEY_NAME}}
+                    echo "TRANSFORM: ${t}($FILTER) matches $KEY; transforming \"${JQTRANSFORM}\" --> ${OUTPUTFILE}"
+
+                    TMPJQ="$WORK_FOLDER/tmp.jq"
+                    if [ ${JQTRANSFORM_FILE} ]; then
+                        aws s3 cp "s3://${BUCKET}/.allied/${JQTRANSFORM_FILE}" "$WORK_FOLDER/${JQTRANSFORM_FILE}"        
+                        if [[ -f $WORK_FOLDER/${JQTRANSFORM_FILE} ]]; then
+                            cat "$WORK_FOLDER/${JQTRANSFORM_FILE}" > $TMPJQ 
+                            echo $JQTRANSFORM >> $TMPJQ
+                        else
+                            echo "error downloading /.allied/${JQTRANSFORM_FILE}"
+                            echo "s3://${BUCKET}/.allied/${JQTRANSFORM_FILE} $WORK_FOLDER/${JQTRANSFORM_FILE}"
+                            continue
+                        fi
+                    else
+                        echo $JQTRANSFORM > "$TMPJQ"
                     fi
+                    #echo "FILTER: " $(cat $TMPJQ)
+                    CMDJQ="jq -r -f $TMPJQ ${WORKING_FILE}"
+                    #echo "JQCMD: $CMDJQ"
+                    RET=$($CMDJQ >${OUTPUTFILE}  2>&1)
+                    #retVal=$?
+                    #echo "exit: $retVal $RET"   
+                    #echo "INPUT: " $(cat $WORKING_FILE)
+                    #echo "CMD: $CMDJQ"
+                    #echo_cmd $CMDJQ
+                    #echo "RESULT: ${OUTPUTFILE} ||| " 
+                    #echo $(cat ${OUTPUTFILE})
                 fi
             else
                 echo "${t} has no filter defined."
@@ -110,29 +155,24 @@ handler ()
         fi
     done
 
-    SHOULD_DEL=$(read_jq "$CONFIG" '.deleteFromSrcBucket // 0')
-    COPY_TO_BUCKET=$(read_jq "$CONFIG" '.copyToBucket // 0')
-    ZIP_OUTPUT=$(read_jq "$CONFIG" '.zipOutput // 0')
-    
-    echo "TOPLEVEL FLAGS: del: $SHOULD_DEL copy: $COPY_TO_BUCKET zip: $ZIP_OUTPUT"
     if [ ${#COPY_TO_BUCKET} -gt 0 ]; then
         if [ ${ZIP_OUTPUT} = true ]; then
+	    ZIPFILE="$WORK_FOLDER/$KEY_NAME.zip"
             set +o noglob
             cd $EXPORT_FOLDER
-            ZIPCMD="zip $WORK_FOLDER/$KEY_NAME.zip *"
-            echo "cmd: ${ZIPCMD}"
-            echo  $(${ZIPCMD})
+            ZIPCMD="zip $ZIPFILE *"
+            echo_cmd ${ZIPCMD}
+            aws s3 cp ${ZIPFILE} "${COPY_TO_BUCKET}/$KEY_NAME.zip"        
             set -o noglob
-            aws s3 cp "$WORK_FOLDER/$KEY_NAME.zip" "${COPY_TO_BUCKET}/$KEY_NAME.zip"        
         else
-            echo "COPY! aws s3 cp --quiet $WORKING_FILE ${COPY_TO_BUCKET}/$KEY"
-            aws s3 cp --quiet "$WORKING_FILE" "${COPY_TO_BUCKET}/$KEY"
+            COPYCMD="aws s3 cp --quiet \"$WORKING_FILE\" \"${COPY_TO_BUCKET}/$KEY\""
+            echo_cmd ${COPYCMD}
         fi
     fi
+
     if [ ${SHOULD_DEL} -gt 0 ]; then
         echo "DELETING($SHOULD_DEL)! $S3URL"
         aws s3 rm  "$S3URL"
-        rm $WORKING_FILE
     fi
     echo "{'success': true}" >&2
     exit 0

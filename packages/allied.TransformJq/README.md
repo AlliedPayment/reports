@@ -2,6 +2,7 @@
 
 This lambda function will transform a file within an s3 bucket and copy the results to another s3 bucket.  You can setup this function to be run via s3 events or invoked directly specifying a 'key' and 'bucket' parameter.
 
+
 In allieddev, the function is deployed here:
 https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions/transformJq?tab=configuration
 
@@ -71,7 +72,11 @@ Please note: the regex's are proper regex as provided by grep.  As such you will
 | lambda_bash/ | https://github.com/cloudshiftstrategies/lambda_bash | Provides a deployment script to create the function. |
 
 
-### Notes on deployment
+### Notes on building
+
+setx AWS_DEFAULT_REGION us-east-1
+set  ALLIED_BUCKET      your-bucket
+
 There is a Makefile included in lambda_bash;  this file provides the commands to deploy, update, and setup configuration.
 
 | make target | Description |

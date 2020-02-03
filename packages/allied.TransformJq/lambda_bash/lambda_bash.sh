@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # This script deploys a bash shell script to AWS Lambda using AWS layers
 # Thanks to https://github.com/gkrizek/bash-lambda-layer for the inspiration
-
 # Some static variables suitable for functions
 TIMEOUT=900 # 15 minutes
 MEMORY_SIZE=1024 # 1GB
 ASSUME_ROLE_POLICY=assume_role_policy.json
 S3_EVENT_CONFIG=s3_event.json
 
-#set -x
+set -x
 set -e 
 
 # Usage
@@ -234,6 +233,7 @@ case $OPERATION in
             echo "---------START RESPONSE------------"
             aws lambda invoke \
                 --function-name $FUNCTION \
+                --payload file://./s3_event.json \
                 --log-type Tail /dev/null \
                 | jq .LogResult | sed s/\"//g | base64 --decode
             echo "---------END RESPONSE------------"

@@ -1,20 +1,27 @@
 {
 	"transforms": {
-		"asd": {
+		"pretty-print": {
 			"filterRegEx": ".*\\.json",
 			"jqTransform": ".[]",
 			"jqOutputName": "pretty-dude-[FILENAME].json"
 		},
-		"test": {
+		"merge-two-json-to-csv": {
 			"filterRegEx": ".*\\.json",
 			"jqOutputName": "[FILENAME]-payments.csv",
 			"jqTransform": ".[2][0].Payment * .[2][0].EbillingInfo  | map(.) | @csv"
 		},
-		"dave": {
+		"dave.xml": {
 			"filterRegEx": "dave.xml",
 			"jqTransform": "[2][0].Payment | with_entries(select(.) | to_entries | map(.key), map(.value) | @csv"
+		},
+		"jqdef.jq": {
+			"filterRegEx": ".*\\.json",
+			"jqTransform": ". | pretty",
+			"jqTransformFile": "jqdefs.jq",
+			"jqOutputName": "jqdefs-[FILENAME].json"
 		}
 	},
+	"debugLevel": 10,
 	"zipIncludeSrcFile": true,
 	"deleteFromSrcBucket": 0,
 	"zipOutput": true,
