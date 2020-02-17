@@ -10,6 +10,18 @@ Globals:
       Variables:
         DESTINATION_BUCKET: !Ref StoreS3Bucket
 
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: reportA2AFraudDetection
+    Description: reportA2AFraudDetection
+    Author: AJ Rambo, Dave Horner
+    ReadmeUrl: README.md
+    Labels: ['reporting']
+    HomePageUrl: https://github.com/user1/my-app-project
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/user1/my-app-project
+
+
 Resources:
   StoreS3Bucket:
     Type: 'AWS::S3::Bucket'
@@ -24,6 +36,8 @@ Resources:
   reportA2AFraudDetectionFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
+      FunctionName: reportA2AFraudDetection
+      Description: reportA2AFraudDetection SQL query against mssql.
       CodeUri: reportA2AFraudDetection/
       Handler: app.lambdaHandler
       Runtime: nodejs12.x
