@@ -1,0 +1,71 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: allied.SendEmail email when files goto s3
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: SendEmail
+    Description: SendEmail
+Globals:
+  Function:
+    Timeout: 900
+
+Resources:
+  alliedSendEmailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteContentAfter3Day
+            Status: 'Enabled'
+            ExpirationInDays: 3
+      Tags:
+        - Key: "allied:SendEmail:Template"
+          Value: "template.tpl"
+        - Key: "allied:SendEmail:Subject"
+          Value: "notification email"
+        - Key: "allied:SendEmail:Body"
+          Value: ""
+  alliedSendEmailFunc:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/allied.SendEmail/bin/Release/netcoreapp2.1/allied.SendEmail.zip
+      Timeout: 900
+      Handler: allied.SendEmail::allied.SendEmail.Function::FunctionHandler
+      Runtime: dotnetcore2.1
+      AutoPublishAlias: live
+      Policies:
+        - AWSLambdaExecute
+        - Statement:
+            - Action: [ 's3:*' ]
+              Effect: Allow
+              Resource: '*'
+      Events:
+        S3Upload:
+          Type: S3
+          Properties:
+            Bucket: !Ref alliedSendEmailBucket
+            Events: s3:ObjectCreated:*
+  alliedSendEmailVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref alliedSendEmailFunc
+  alliedSendEmailAlias:
+    Type: AWS::Lambda::Alias
+    DependsOn:
+      - alliedSendEmailFunc
+      - alliedSendEmailVersion
+    Properties:
+      FunctionName: !Ref   alliedSendEmailFunc
+      FunctionVersion: !GetAtt alliedSendEmailVersion.Version
+      Name: BLUE
+Outputs:
+  EventBucket:
+    Description: "S3 bucket that triggers emails; configuration in .allied folder"
+    Value: !Ref alliedSendEmailBucket
