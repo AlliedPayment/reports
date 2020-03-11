@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+    allied.FtpToS3
+    
+    sync files on ftp to s3 bucket.
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+    Function:
+        Timeout: 5
+
+
+Resources:
+
+    FirstFunction:
+        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+        Properties:
+            CodeUri: first_function/build/
+            Handler: app.lambda_handler
+            Runtime: python3.6 # https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
+            # Policies: # Example inline policy
+            #     - Version: "2012-10-17"
+            #     Statement:
+            #         - Effect: "Allow"
+            #         Action:
+            #             - "ssm:GetParameter"
+            #         Resource:
+            #             - "*"
+            Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+                Variables:
+                    PARAM1: VALUE
+
+    # Sample policy to add additional permissions to your Lambda
+    FirstFunctionAdditionalPermission:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyName: "root"
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: "Allow"
+                        Action: "ssm:GetParameters"
+                        Resource: "*"
+            Roles:
+                - !Ref FirstFunctionRole # Sample policy to demonstrate Implicit IAM Role created with SAM
+
+Outputs:
+
+
+    FirstFunction:
+      Description: "First Lambda Function ARN"
+      Value: !GetAtt FirstFunction.Arn
+
