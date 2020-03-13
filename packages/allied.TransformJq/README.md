@@ -85,3 +85,7 @@ There is a Makefile included in lambda_bash;  this file provides the commands to
 | make update | only update the transformJq script. |
 | make config | copy the transformJqConfig.json file to the bucket. |
 | make example | copy the example.json file to the bucket. |
+
+
+https://github.com/gkrizek/bash-lambda - layer Bash in AWS Lambda
+https://github.com/cloudshiftstrategies/lambda_bash - bash script to manage AWS lambda.

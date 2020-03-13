@@ -7,7 +7,7 @@ MEMORY_SIZE=1024 # 1GB
 ASSUME_ROLE_POLICY=assume_role_policy.json
 S3_EVENT_CONFIG=s3_event.json
 
-set -x
+#set -x
 set -e 
 
 # Usage

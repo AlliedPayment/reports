@@ -1,6 +1,6 @@
 import json
 import pytest
-from first_function import app
+from FtpToS3 import app
 
 
 

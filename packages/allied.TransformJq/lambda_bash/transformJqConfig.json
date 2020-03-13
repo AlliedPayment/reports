@@ -25,5 +25,5 @@
 	"zipIncludeSrcFile": true,
 	"deleteFromSrcBucket": 0,
 	"zipOutput": true,
-	"copyToBucket": "s3://allied-email-bucket"
+	"copyToBucket": "s3://allied-sendemail-alliedsendemailbucket-8o4xar2vyhwi"
 }

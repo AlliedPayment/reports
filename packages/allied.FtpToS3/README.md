@@ -22,7 +22,7 @@ As you've chosen the experimental Makefile we can use Make to automate Packaging
         make test
 
         ...::: Creates local dev environment for Python hot-reloading w/ packages:::...
-        make build SERVICE="first_function"
+        make build SERVICE="FtpToS3"
 
         ...::: Run SAM Local API Gateway :::...
         make run
@@ -30,7 +30,7 @@ As you've chosen the experimental Makefile we can use Make to automate Packaging
         # or
 
         ...::: Run SAM Invoke Function :::...
-        make invoke SERVICE="FirstFunction" EVENT="events/first_function_event.json"
+        make invoke SERVICE="FirstFunction" EVENT="events/FtpToS3_event.json"
 ```
 
 
@@ -46,14 +46,14 @@ make test
 
 ## Packaging
 
-AWS Lambda Python runtime requires a flat folder with all dependencies including the application. To facilitate this process, the pre-made SAM template expects this structure to be under `first_function/build/`:
+AWS Lambda Python runtime requires a flat folder with all dependencies including the application. To facilitate this process, the pre-made SAM template expects this structure to be under `FtpToS3/build/`:
 
 ```yaml
 ...
     FirstFunction:
         Type: AWS::Serverless::Function
         Properties:
-            CodeUri: first_function/build/
+            CodeUri: FtpToS3/build/
             ...
 ```
 
@@ -64,7 +64,7 @@ With that in mind, we will:
 2. Copy our function (app.py) into `build` sub-folder
 
 
-Given that you've chosen a Makefile these steps are automated by simply running: ``make build SERVICE="first_function"``
+Given that you've chosen a Makefile these steps are automated by simply running: ``make build SERVICE="FtpToS3"``
 
 
 
@@ -127,12 +127,12 @@ It is important that the Makefile created only works on OSX/Linux but the tasks 
 The following make targets will automate that we went through above:
 
 * Find all available targets: `make`
-* Install all deps and clone (OS hard link) our lambda function to `/build`: `make build SERVICE="first_function"`
-    - `SERVICE="first_function"` tells Make to start the building process from there
+* Install all deps and clone (OS hard link) our lambda function to `/build`: `make build SERVICE="FtpToS3"`
+    - `SERVICE="FtpToS3"` tells Make to start the building process from there
     - By creating a hard link we no longer need to keep copying our app over to Build and keeps it tidy and clean
 * Run `Pytest` against all tests found under `tests` folder: `make test`
-* Install all deps and builds a ZIP file ready to be deployed: `make package SERVICE="first_function"`
-    - You can also build deps and a ZIP file within a Docker Lambda container: `make package SERVICE="first_function" DOCKER=1`
+* Install all deps and builds a ZIP file ready to be deployed: `make package SERVICE="FtpToS3"`
+    - You can also build deps and a ZIP file within a Docker Lambda container: `make package SERVICE="FtpToS3" DOCKER=1`
     - **This is particularly useful when using C-extensions that if built on your OS may not work when deployed to Lambda (different OS)**
 
 

@@ -14,8 +14,9 @@ PIPENV ?= pipenv
 #  Python vars	#
 ################# 
 
-SERVICE ?= service_not_defined
+SERVICE ?= FtpToS3Lambda# service_not_defined
 EVENT ?= event_not_defined
+BUCKET_DEPLOY ?= allied-ftp-to-s3
 
 ############# 
 #  SAM vars	#
@@ -29,8 +30,9 @@ target:
 
 clean: ##=> Deletes current build environment and latest build
 	$(info [*] Who needs all that anyway? Destroying environment....)
+	rm -rf ./${SERVICE}
 	rm -rf ./${SERVICE}/build
-	rm -rf ./${SERVICE}.zip
+	rm -rf ./*.zip
 
 all: clean build
 
@@ -65,6 +67,14 @@ run: ##=> Run SAM Local API GW and can optionally run new containers connected t
 
 test: ##=> Run pytest
 	@AWS_XRAY_CONTEXT_MISSING=LOG_ERROR $(PIPENV) run python -m pytest --cov . --cov-report term-missing --cov-fail-under $(CODE_COVERAGE) tests/ -v
+
+dave:
+	make clean SERVICE=FtpToS3Lambda && (mkdir FtpToS3Lambda || true) && make all SERVICE=FtpToS3Lambda && make _zip &&  make deploy
+
+
+deploy:
+	aws cloudformation package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $(BUCKET_DEPLOY) --profile prod
+	aws cloudformation deploy --template-file packaged.yaml --stack-name FtpToS3Lambda --capabilities CAPABILITY_IAM --profile prod --force-upload
 
 ############# 
 #  Helpers  #
@@ -107,13 +117,14 @@ ifeq ($(wildcard $(EVENT)),)
 endif
 
 _clone_service_to_build:
+	rsync -avz src/ ${SERVICE}/
 ifeq ($(wildcard $(SERVICE)/build/.),)
 	$(info [+] Setting permissions for files under ${SERVICE}/)
 	@find ${SERVICE}/ -type f -exec chmod go+r {} \;
 	$(info [+] Setting permissions for directories under ${SERVICE}/)
 	@find ${SERVICE}/ -type d -exec chmod go+rx {} \;
 	$(info [+] Cloning ${SERVICE} directory structure to ${SERVICE}/build)
-	@rsync -a -f "+ */" -f "- *" ${SERVICE}/ ${SERVICE}/build/
+	@rsync -a -f "+ */" -f "- *" src/ ${SERVICE}/build/
 	$(info [+] Cloning source files from ${SERVICE} to ${SERVICE}/build)
 	@find ${SERVICE} -type f \
 			-not -name "*.pyc" \
@@ -155,11 +166,33 @@ _package: _clone_service_to_build _check_service_definition _install_deps
 
 # As its name states: Zip everything up from build
 _zip: _check_dev_definition 
+	rm -f "$(BASE)/$(SERVICE).zip"
+	rsync -avz src/ ${SERVICE}/
 	$(info [+] Creating '$(SERVICE)' ZIP...")
-	@cd ${SERVICE}/build && zip -rq -9 "$(BASE)/$(SERVICE).zip" * \
+	@cd ${SERVICE}/build &&  cp -r .libs_cffi_backend/libffi-806b1a9d.so.6.0.4 ../ && zip -rq -9 "$(BASE)/$(SERVICE).zip" * \
 	--exclude "wheel/*" "setuptools/*" "pkg_resources/*" "pip/*" \
 			  "easy_install.py" "__pycache__/*" "*.dist-info/*" "./**/__pycache__/*"
 	$(info [*] Build complete: $(BASE)/$(SERVICE).zip)
+
+_zip_layer: _check_dev_definition 
+	$(info [+] Creating '$(SERVICE)' ZIP...")
+	rm -f "$(BASE)/$(SERVICE)Layer.zip"
+	cd ${SERVICE} && rm -f app.py __init__.py
+	mv ${SERVICE}/build ${SERVICE}/python 
+	cd $(BASE)/${SERVICE}
+	pwd
+	cd $(BASE)/${SERVICE} && zip -rq -9 "$(BASE)/$(SERVICE)Layer.zip" * \
+	--exclude "test" "wheel/*" "setuptools/*" "pkg_resources/*" "pip/*" \
+			  "easy_install.py" "__pycache__/*" "*.dist-info/*" "./**/__pycache__/*"
+	mv ${SERVICE}/python ${SERVICE}/build
+	$(info [*] Build complete: $(BASE)/$(SERVICE)Layer.zip)
+
+_zip_small: _check_dev_definition 
+	rm -f "$(BASE)/$(SERVICE)Small.zip"
+	rsync -avz src/ ${SERVICE}/
+	$(info [+] Creating '$(SERVICE)' ZIP...")
+	@cd ${SERVICE}/build &&  zip -9 "$(BASE)/$(SERVICE)Small.zip" *.py 
+	$(info [*] Build complete: $(BASE)/$(SERVICE)Small.zip)
 
 define HELP_MESSAGE
 	Environment variables to be aware of or to hardcode depending on your use case:
@@ -184,7 +217,7 @@ define HELP_MESSAGE
 	$ make clean SERVICE="slack"
 
 	...::: Creates local dev environment for Python hot-reloading w/ packages:::...
-	$ make build SERVICE="first_function"
+	$ make build SERVICE="FtpToS3"
 
 	...::: Bundles app and dependencies into a ZIP file :::...
 	$ make package SERVICE="email"

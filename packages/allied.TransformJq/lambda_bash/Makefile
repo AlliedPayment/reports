@@ -1,11 +1,30 @@
+.ONESHELL:
 
-BUCKET=allied-deploy
+FUNCNAME=transformJq
+BUCKET=allied-transformjq
 AWS_DEFAULT_REGION=us-east-1
 # setx AWS_DEFAULT_REGION us-east-1
-
+export PATH:=$(PATH):~/.local/bin
 
 update:
 	./lambda_bash.sh -o update -s transformJq.sh
+
+delete:
+	aws lambda delete-function --function-name $(FUNCNAME)
+
+version:
+	aws lambda publish-version --function-name $(FUNCNAME)
+
+alias:
+	aws lambda create-alias \
+    	--function-name $(FUNCNAME) \
+    	--description "alias for live version of $(FUNCNAME)" \
+    	--function-version 1 \
+    	--name LIVE
+
+events3:
+	~/.local/bin/j2 -f json s3-eventing.json.j2 > s3-eventing.json
+	aws s3api put-bucket-notification-configuration --bucket $(BUCKET)  --notification-configuration file://./s3-eventing.json
 
 run:
 	cat example.json | ./lambda_bash.sh -o run -s transformJq.sh
@@ -19,6 +38,8 @@ example:
 jqdefs:
 	aws s3 cp jqdefs.jq s3://$(BUCKET)/.allied/jqdefs.jq
 
+mb:
+	aws s3 mb s3://$(BUCKET)
 
 deploy:
 	./lambda_bash.sh -o deploy -s transformJq.sh
@@ -34,7 +55,8 @@ authors:
 ubu_deps:
 	sudo apt install make jq python-minimal python-pip -y
 	#export PATH=$HOME/.local/bin:$PATH
-	yes | pip install awscli aws-shell --upgrade # --user
+	yes | sudo -H pip install awscli --upgrade --ignore-installed
+	pip3 install j2cli
 
 help:
 	cat Makefile | less

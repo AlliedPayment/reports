@@ -1,55 +1,64 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-    allied.FtpToS3
+    allied.FtpToS3Lambda
     
-    sync files on ftp to s3 bucket.
+    sync files on sftp to s3 bucket.
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
     Function:
-        Timeout: 5
-
+        Timeout: 400
 
 Resources:
 
-    FirstFunction:
-        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    FtpToS3Lambda:
+        Type: AWS::Serverless::Function
         Properties:
-            CodeUri: first_function/build/
+            CodeUri: FtpToS3Lambda/build/
             Handler: app.lambda_handler
-            Runtime: python3.6 # https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
-            # Policies: # Example inline policy
-            #     - Version: "2012-10-17"
-            #     Statement:
-            #         - Effect: "Allow"
-            #         Action:
-            #             - "ssm:GetParameter"
-            #         Resource:
-            #             - "*"
-            Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+            Runtime: python3.6 
+            AutoPublishAlias: live
+            Policies:
+                - AWSLambdaExecute
+                - Statement:
+                    - Action: [ 's3:*' ]
+                      Effect: Allow
+                      Resource: '*'
+                    - Action: "ssm:GetParameters"
+                      Effect: "Allow"
+                      Resource: "*"
+            Environment: 
                 Variables:
-                    PARAM1: VALUE
+                    BUCKET_DEST: allied-ftp-to-s3
 
-    # Sample policy to add additional permissions to your Lambda
-    FirstFunctionAdditionalPermission:
-        Type: "AWS::IAM::Policy"
-        Properties:
-            PolicyName: "root"
-            PolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                    -
-                        Effect: "Allow"
-                        Action: "ssm:GetParameters"
-                        Resource: "*"
-            Roles:
-                - !Ref FirstFunctionRole # Sample policy to demonstrate Implicit IAM Role created with SAM
+    ScheduledRule: 
+        Type: AWS::Events::Rule
+        Properties: 
+            Description: "ScheduledRule"
+            ScheduleExpression: "rate(10 minutes)"
+            State: "ENABLED"
+            Targets: 
+            - 
+              Arn: 
+                Fn::GetAtt: 
+                    - "FtpToS3Lambda"
+                    - "Arn"
+              Id: "TargetFunctionV1"
+    PermissionForEventsToInvokeLambda: 
+        Type: AWS::Lambda::Permission
+        Properties: 
+            FunctionName: 
+                Ref: "FtpToS3Lambda"
+            Action: "lambda:InvokeFunction"
+            Principal: "events.amazonaws.com"
+            SourceArn: 
+                Fn::GetAtt: 
+                    - "ScheduledRule"
+                    - "Arn"
 
 Outputs:
-
-
-    FirstFunction:
-      Description: "First Lambda Function ARN"
-      Value: !GetAtt FirstFunction.Arn
+    FtpToS3Lambda:
+      Description: "sync files on sftp to s3 bucket."
+      Value: !GetAtt FtpToS3Lambda.Arn
 
