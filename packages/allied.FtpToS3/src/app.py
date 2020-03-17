@@ -32,12 +32,17 @@ def get_message():
     #{'ServerSideEncryption': 'AES256'}
     hostname,port = "ftp2.alliedpayment.com",22
     username,password = "BillGoPrismNetwork","8\CVRcJJ;s+g"
+    hostkey=None
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None   
+    if hostkey:
+        hostkey = paramiko.py3compat.decodebytes(hostkey)
+        sshkey = paramiko.RSAKey(data=hostkey)
+        cnopts = pysftp.CnOpts()
+        cnopts.hostkeys.add(host, "ssh-rsa", sshkey)
     localdir='/tmp'
     os.chdir(localdir)
-#    file_names = []
-    body= 'Hello from Lambda Layers!'
+    body= ''
     file_names.clear()
     with pysftp.Connection(hostname, username=username, password=password, cnopts=cnopts) as sftp:
         with sftp.cd('/'):
@@ -46,7 +51,7 @@ def get_message():
             for filename in file_names:
                 localpath=os.path.join(localdir + filename)
                 print(os.path.join(localdir + filename))
-                print(f'downloading file {filename} to {localpath}\n')                
+                print(f'downloading file {filename} to {localpath}\n')
                 sftp.get(filename,localpath,callback=None,preserve_mtime=True)
                 #s3path=  + filename
                 body=f'uploading file {localpath} {dbucket}\n'
