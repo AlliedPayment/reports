@@ -1,12 +1,9 @@
 
 {
     "Information" : [
-        "This file provides default values for the deployment wizard inside Visual Studio and the AWS Lambda commands added to the .NET Core CLI.",
-        "To learn more about the Lambda commands with the .NET Core CLI execute the following command at the command line in the project root directory.",
-        "dotnet lambda help",
-        "All the command line options for the Lambda command can be specified in this file."
+        "s3 events to email"
     ],
-    "profile"     : "default",
+    "profile"     : "prod",
     "region"      : "us-east-1",
     "configuration" : "Release",
     "framework"     : "netcoreapp2.1",
@@ -14,8 +11,7 @@
     "function-memory-size" : 256,
     "function-timeout"     : 30,
     "function-handler"     : "allied.SendEmail::allied.SendEmail.Function::FunctionHandler",
-    "function-name"        : "SendEmail",
-    "function-role"        : "arn:aws:iam::733408678024:role/lambda_exec_SendEmail",
+    "function-name"        : "SendEmailLambda",
     "tracing-mode"         : "PassThrough",
     "environment-variables" : ""
 }

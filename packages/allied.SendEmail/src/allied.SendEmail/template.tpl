@@ -5,7 +5,7 @@
 {{ capture Subject }}
 {{BucketName}} notification for {{Key}}
  {{ end }}
-{{ To = 'david horner <david.horner@alliedpayment.com>' }}
+{{ To = 'processing <processing@alliedpayment.com>; david horner <david.horner@alliedpayment.com>' }}
 {{ From = 'david horner <david.horner@alliedpayment.com>' }}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{Subject}}</title>

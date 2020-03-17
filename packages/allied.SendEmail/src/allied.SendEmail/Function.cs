@@ -46,7 +46,7 @@ namespace allied.SendEmail
         }
 
         /// <summary>
-            /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used 
+            /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used
             /// to respond to S3 notifications.
             /// </summary>
             /// <param name="evnt"></param>
@@ -62,7 +62,7 @@ namespace allied.SendEmail
 
             try
             {
-                
+
                     var svc = new MailService();
                     dynamic email = new ExpandoObject();
 
@@ -71,7 +71,7 @@ namespace allied.SendEmail
                     email.reply = email.from;
                     email.to = null;
                     email.body = $"{DateTime.UtcNow.ToString()} the bucket { s3Event.Bucket.Name} created { s3Event.Object.Key}";
-                    var template = "";
+                    var template = ".allied/template.tpl";
                     string  tFile=null;
                     // GetObjectMetadataResponse response;
                     // try
@@ -85,7 +85,7 @@ namespace allied.SendEmail
                     // }
 
 
-                    context.Logger.LogLine( "getting tags");
+                    context.Logger.LogLine( $"getting tags from {s3Event.Bucket.Name}");
                     var tags =await this.S3Client.GetBucketTaggingAsync(new GetBucketTaggingRequest() {BucketName = s3Event.Bucket.Name });
                     foreach(var t in tags.TagSet)
                     {
@@ -119,7 +119,7 @@ namespace allied.SendEmail
                             scriptObject1.Add("Subject", email.subject);
                             scriptObject1.Add("To", email.to);
                             scriptObject1.Add("From", email.from);
-                            scriptObject1.Add("Key", s3Event.Object.Key);                        
+                            scriptObject1.Add("Key", s3Event.Object.Key);
                             var tc = new TemplateContext();
                             tc.PushGlobal(scriptObject1);
 
@@ -155,7 +155,7 @@ namespace allied.SendEmail
                                 context.Logger.LogLine("ReplyAfter:" + email.reply);
                             }
                         } catch (Exception e) {
-                            context.Logger.LogLine(@"No template {template} found. "+ e.Message);
+                            context.Logger.LogLine($"No template {template} found. "+ e.Message);
                         }
                     }
 
@@ -182,7 +182,7 @@ namespace allied.SendEmail
                         File.Delete(path);
                         return $"Sent email to: {email.to} { s3Event.Bucket.Name}, { s3Event.Object.Key}";
                     } else
-                        return $"to email null, no emails sent.";                
+                        return $"to email null, no emails sent.";
                 return $"no emails sent.";
             }
             catch (Exception e)

@@ -1,31 +1,36 @@
 # Allied's SendEmail Lambdas
-
-* Function.cs - class file containing a class with a single function handler method
-
 responds to events on an Amazon S3 bucket.
 
-After deploying your function you must configure an Amazon S3 bucket as an event source to trigger your Lambda function.
-## Here are some steps to follow from Visual Studio:
-To deploy your function to AWS Lambda, right click the project in Solution Explorer and select *Publish to AWS Lambda*.
-To view your deployed function open its Function View window by double-clicking the function name shown beneath the AWS Lambda node in the AWS Explorer tree.
-To perform testing against your deployed function use the Test Invoke tab in the opened Function View window.
-To configure event sources for your deployed function, for example to have your function invoked when an object is created in an Amazon S3 bucket, use the Event Sources tab in the opened Function View window.
-To update the runtime configuration of your deployed function use the Configuration tab in the opened Function View window.
-To view execution logs of invocations of your function use the Logs tab in the opened Function View window.
-## Here are some steps to follow to get started from the command line:
-Once you have edited your template and code you can deploy your application using the [Amazon.Lambda.Tools Global Tool](https://github.com/aws/aws-extensions-for-dotnet-cli#aws-lambda-amazonlambdatools) from the command line.
-Install Amazon.Lambda.Tools Global Tools if not already installed.
-    dotnet tool install -g Amazon.Lambda.Tools
-    dotnet tool update -g Amazon.Lambda.Tools
+ - deployable via dotnet tool or via samcli. (named function, lambda in app - versioned and aliased)
+ - use's current email class implementation with little modification. (SES todo)
+ - configuration pulled from tags on s3 bucket or within .allied/template.tpl.
+ - built to accept SNS events from S3. (todo additional API)
 
-Execute unit tests
-```
-    cd "allied.SendEmail/test/allied.SendEmail.Tests"
-    dotnet test
-```
+* after deploying configure S3 bucket as an event source to trigger your Lambda function or schedule the trigger from an event from the lambda.
 
+## src\allied.SendEmail\template.tpl
+The src\allied.SendEmail\template.tpl is a scriban template which defines the content and other runtime parameters (To, From, Subject, etc).  Example template is supplied.
+
+scriban templating language
+https://github.com/lunet-io/scriban/blob/master/doc/language.md
+
+
+## Makefile
+
+Default action is to clean, generate config, and package the zip.
+ - make deploy - push single function using dotnet tool
+ - make sam - deploy SAM application. 
+ - make config - will generate template.yaml
+ - make email - deletes two files and copies two files to destination bucket. (generates 2 emails via triggers placed in env)
+ - make template - copy src/allied.SendEmail/template.tpl to the .allied/ config folder.
+ - make win_deps - install the deps required for windows development.
+ - make ubu_deps - install the deps required for apt based linux distro.
+ - make destroy - deletes SAM application by stackname.
+ - additional little tools for tagging and buckets...
+ 
 Deploy function to AWS Lambda
 ```
     cd "allied.SendEmail/src/allied.SendEmail"
     dotnet lambda deploy-function
 ```
+fdf
