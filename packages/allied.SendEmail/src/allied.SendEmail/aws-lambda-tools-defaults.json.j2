@@ -3,7 +3,7 @@
     "Information" : [
         "s3 events to email"
     ],
-    "profile"     : "{{ PROFILE }}",
+    "profile"     : "{{ AWS_PROFILE }}",
     "region"      : "us-east-1",
     "configuration" : "Release",
     "framework"     : "netcoreapp2.1",
@@ -13,5 +13,7 @@
     "function-handler"     : "allied.SendEmail::allied.SendEmail.Function::FunctionHandler",
     "function-name"        : "SendEmailLambda",
     "tracing-mode"         : "PassThrough",
-    "environment-variables" : ""
+    "tags"                 : "janitor.optout=true;",
+    "template-parameters"  : "",
+    "environment-variables": ""
 }

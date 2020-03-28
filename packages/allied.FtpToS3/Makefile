@@ -14,9 +14,10 @@ PIPENV ?= pipenv
 #  Python vars	#
 ################# 
 
-SERVICE ?= FtpToS3Lambda# service_not_defined
+SERVICE ?= FtpToS3Lambda
+STACKNAME=$(SERVICE)
 EVENT ?= event_not_defined
-BUCKET_DEPLOY ?= allied-ftp-to-s3
+BUCKET_DEPLOY ?= deployments-allied
 
 ############# 
 #  SAM vars	#
@@ -34,7 +35,7 @@ clean: ##=> Deletes current build environment and latest build
 	rm -rf ./${SERVICE}/build
 	rm -rf ./*.zip
 
-all: clean build
+all: clean _update_code build
 
 install: _install_packages _install_dev_packages
 
@@ -68,13 +69,17 @@ run: ##=> Run SAM Local API GW and can optionally run new containers connected t
 test: ##=> Run pytest
 	@AWS_XRAY_CONTEXT_MISSING=LOG_ERROR $(PIPENV) run python -m pytest --cov . --cov-report term-missing --cov-fail-under $(CODE_COVERAGE) tests/ -v
 
-dave:
-	make clean SERVICE=FtpToS3Lambda && (mkdir FtpToS3Lambda || true) && make all SERVICE=FtpToS3Lambda && make _zip &&  make deploy
+dave: 
+	make clean SERVICE=$(SERVICE) && (mkdir -p $(SERVICE) || true) && make all SERVICE=$(SERVICE) && make _zip &&  make deploy
 
 
 deploy:
-	aws cloudformation package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $(BUCKET_DEPLOY) --profile prod
-	aws cloudformation deploy --template-file packaged.yaml --stack-name FtpToS3Lambda --capabilities CAPABILITY_IAM --profile prod --force-upload
+	aws cloudformation package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $(BUCKET_DEPLOY) --s3-prefix $(STACKNAME)
+	aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM --force-upload  --stack-name $(STACKNAME) --tags janitor.optout=true
+
+destroy:
+	aws cloudformation delete-stack --stack-name $(STACKNAME)
+
 
 ############# 
 #  Helpers  #
@@ -116,8 +121,11 @@ ifeq ($(wildcard $(EVENT)),)
 	$(error [!] '$(EVENT)' file doesn't exist)
 endif
 
-_clone_service_to_build:
-	rsync -avz src/ ${SERVICE}/
+_update_code:
+	mkdir -p ${SERVICE}/build
+	@test -d src && rsync -avz src/ ${SERVICE}/build/
+
+_clone_service_to_build: _update_code
 ifeq ($(wildcard $(SERVICE)/build/.),)
 	$(info [+] Setting permissions for files under ${SERVICE}/)
 	@find ${SERVICE}/ -type f -exec chmod go+r {} \;
@@ -125,17 +133,6 @@ ifeq ($(wildcard $(SERVICE)/build/.),)
 	@find ${SERVICE}/ -type d -exec chmod go+rx {} \;
 	$(info [+] Cloning ${SERVICE} directory structure to ${SERVICE}/build)
 	@rsync -a -f "+ */" -f "- *" src/ ${SERVICE}/build/
-	$(info [+] Cloning source files from ${SERVICE} to ${SERVICE}/build)
-	@find ${SERVICE} -type f \
-			-not -name "*.pyc" \
-			-not -name "*__pycache__" \
-			-not -name "requirements.txt" \
-			-not -name "event.json" \
-			-not -name "build" | cut -d '/' -f2- > .results.txt
-	@while read line; do \
-		ln -f ${SERVICE}/$$line ${SERVICE}/build/$$line; \
-	done < .results.txt
-	@rm -f .results.txt
 	$(info [+] Copying events to ${SERVICE}/build)
 	@test -d events && rsync -avz events ${SERVICE}/build/
 else
@@ -167,7 +164,7 @@ _package: _clone_service_to_build _check_service_definition _install_deps
 # As its name states: Zip everything up from build
 _zip: _check_dev_definition 
 	rm -f "$(BASE)/$(SERVICE).zip"
-	rsync -avz src/ ${SERVICE}/
+	rsync -avz src/* ${SERVICE}/
 	$(info [+] Creating '$(SERVICE)' ZIP...")
 	@cd ${SERVICE}/build &&  cp -r .libs_cffi_backend/libffi-806b1a9d.so.6.0.4 ../ && zip -rq -9 "$(BASE)/$(SERVICE).zip" * \
 	--exclude "wheel/*" "setuptools/*" "pkg_resources/*" "pip/*" \

@@ -15,7 +15,7 @@ Resources:
     FtpToS3Lambda:
         Type: AWS::Serverless::Function
         Properties:
-            CodeUri: FtpToS3Lambda/build/
+            CodeUri: ./FtpToS3Lambda/build
             Handler: app.lambda_handler
             Runtime: python3.6 
             AutoPublishAlias: live

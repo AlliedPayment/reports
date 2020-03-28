@@ -2,44 +2,44 @@ import boto3
 import json
 import os
 import pysftp
+import paramiko
+import base64
 from urllib.parse import urljoin
 
-
-session = boto3.Session()
 file_names = []
 dir_names = []
 un_name = []
 
+
 def lambda_handler(event, context):
-    return get_message()
-
-
-def store_files_name(fname):
-    file_names.append(fname) 
-
-def store_dir_name(dirname):
-    dir_names.append(dirname)
-
-def store_other_file_types(name):
-    un_name.append(name)
-
-def get_message():
-    s3 = boto3.resource('s3')
+    session = boto3.Session()
+    from collections import defaultdict
+    nested_dict = lambda: defaultdict(nested_dict)
+    config = nested_dict()
+    #hostkey= "ssh-rsa 1024 62:1f:6a:d4:d5:a4:5a:c1:1b:8b:f9:ae:ab:e2:a2:da"
+    config['ftp2.alliedpayment.com']['ssh-rsa 1024']= \
+                b'qzLQmar+yD/rFeX6N8q/PZqEaWUv87ysrneFVWDdfbk='
+    config['ftp2.alliedpayment.com']['password']= \
+                '8\CVRcJJ;s+g'
+    config['ftp2.alliedpayment.com']['username']= \
+                'BillGoPrismNetwork'
+    default_host='ftp2.alliedpayment.com'
     dbucket=os.environ.get('BUCKET_DEST');
     if not dbucket:
         dbucket="allied-ftp-to-s3"
-    extargs=None
-    #{'ServerSideEncryption': 'AES256'}
-    hostname,port = "ftp2.alliedpayment.com",22
+    hostname,port = default_host,22
     username,password = "BillGoPrismNetwork","8\CVRcJJ;s+g"
-    hostkey=None
+    hostkey=config[hostname]['ssh-rsa 1024']
+
+    s3 = boto3.resource('s3')
+
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None   
-    if hostkey:
-        hostkey = paramiko.py3compat.decodebytes(hostkey)
-        sshkey = paramiko.RSAKey(data=hostkey)
-        cnopts = pysftp.CnOpts()
-        cnopts.hostkeys.add(host, "ssh-rsa", sshkey)
+    #if hostkey:
+    ##    data=base64.b64decode(hostkey)
+    #    key=paramiko.RSAKey(data=data)
+    #    sshkey = paramiko.RSAKey(data=key)
+    #    cnopts.hostkeys.add(hostname, "ssh-rsa", sshkey)
     localdir='/tmp'
     os.chdir(localdir)
     body= ''
@@ -56,7 +56,7 @@ def get_message():
                 #s3path=  + filename
                 body=f'uploading file {localpath} {dbucket}\n'
                 print(body)
-                s3.meta.client.upload_file(localpath, dbucket,filename[1:],extargs)
+                s3.meta.client.upload_file(localpath, dbucket,filename[1:],None)
                 
                 bucket = s3.Bucket(dbucket)
                 objs = list(bucket.objects.filter(Prefix=filename[1:]))
@@ -75,5 +75,11 @@ def get_message():
 
 
 
+def store_files_name(fname):
+    file_names.append(fname) 
 
+def store_dir_name(dirname):
+    dir_names.append(dirname)
 
+def store_other_file_types(name):
+    un_name.append(name)

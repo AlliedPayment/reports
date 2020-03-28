@@ -9,6 +9,7 @@ name = "pypi"
 
 boto3 = "*"
 pysftp = "*"
+paramiko = "*"
 
 [dev-packages]
 

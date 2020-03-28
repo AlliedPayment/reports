@@ -25,6 +25,7 @@ namespace allied.SendEmail
     public class Function
     {
         IAmazonS3 S3Client { get; set; }
+        ILambdaContext gContext  { get; set; }
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -44,154 +45,246 @@ namespace allied.SendEmail
         {
             this.S3Client = s3Client;
         }
+    public enum logLevel
+    {
+        SILENT = 0,
+        NORM = 1,
+        DEBUG = 2,
+        ERROR = 3
+    }
+    public string ld(string msg, logLevel lvl = logLevel.ERROR)
+    {
+        if(lvl>0) {
+            gContext.Logger.LogLine(msg);
+        }
+        return msg;
+    }
 
-        /// <summary>
-            /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used
-            /// to respond to S3 notifications.
-            /// </summary>
-            /// <param name="evnt"></param>
-            /// <param name="context"></param>
-            /// <returns></returns>
-            public async Task<string> FunctionHandler(S3Event evnt, ILambdaContext context)
+    public string le(string msg, Exception e, logLevel lvl = logLevel.ERROR)
+    {
+        return le(e.Message)+le(e.StackTrace);
+    }
+    public string le(Exception e, logLevel lvl = logLevel.ERROR)
+    {
+        return le(e.Message)+le(e.StackTrace);
+    }
+
+    public string le(string msg, logLevel lvl = logLevel.ERROR)
+    {
+        if(lvl>0) {
+            gContext.Logger.LogLine(msg);
+        }
+        return msg;
+    }
+    public string ll(string msg, logLevel lvl = logLevel.NORM)
+    {
+        if(lvl>0) {
+            gContext.Logger.LogLine(msg);
+        }
+        return msg;
+    }
+
+	public async Task<string> GetS3String(string bucket, string key)
+	{
+		var tpath = Path.Combine(Path.GetTempPath(), key);
+        await S3Client.DownloadToFilePathAsync(bucket, key, tpath, null,
+        CancellationToken.None);
+        string ret = File.ReadAllText(tpath, System.Text.Encoding.ASCII);
+        File.Delete(tpath);
+		return ret;
+	}
+
+    /// <summary>
+        /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used
+        /// to respond to S3 notifications.
+        /// </summary>
+        /// <param name="evnt"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public async Task<string> FunctionHandler(S3Event evnt, ILambdaContext context)
         {
-            var s3Event = evnt.Records?[0].S3;
-            if (s3Event == null)
+        gContext=context;
+        var s3Event = evnt.Records?[0].S3;
+        if (s3Event == null)
+        {
+            return le("this function only handles s3 events.");
+        }
+        string bucket=s3Event.Bucket.Name;
+        string key=s3Event.Object.Key;
+
+        try
+        {
+            double numbytes = await GetFileBytes(bucket,key);
+            string filesize=GetFileSize(numbytes);
+            var svc = new MailService();
+            dynamic email = new ExpandoObject();
+
+            email.subject = $"{bucket} notification for {key} - {numbytes} ({filesize})";
+            email.from = null;
+            email.reply = email.from;
+            email.to = null;
+            email.body = $"{DateTime.UtcNow.ToString()} the bucket { bucket} created { key}";
+            var template = ".config/template.tpl";
+            ll(email.subject);
+
+            long maxInclude=0;
+            bool includeContents=false;
+            bool allowToOverride = true;
+            var tags =await this.S3Client.GetBucketTaggingAsync(new GetBucketTaggingRequest() {BucketName = bucket });
+            foreach(var t in tags.TagSet)
             {
-                return "this function only handles s3 events.";
+                if (t.Key.Equals("SendEmail:Subject", StringComparison.OrdinalIgnoreCase))
+                {
+                    email.subject = t.Value;
+                } else if (t.Key.Equals("SendEmail:To", StringComparison.OrdinalIgnoreCase))
+                {
+                    email.to = t.Value;
+                } else if (t.Key.Equals("SendEmail:Body", StringComparison.OrdinalIgnoreCase))
+                {
+                    email.body = t.Value;
+                } else if (t.Key.Equals("SendEmail:IncludeContents", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeContents = true;
+                } else if (t.Key.Equals("SendEmail:AllowToOverride", StringComparison.OrdinalIgnoreCase))
+                {
+                    allowToOverride = false;
+                } else if (t.Key.Equals("SendEmail:Template", StringComparison.OrdinalIgnoreCase))
+                {
+                    template = t.Value;
+                }
             }
 
-            try
+            if (template.Length>0)
             {
+                try
+                {
+                    string templateData=await GetS3String(bucket, template);
+    
+                    var scriptObject1 = new ScriptObject();
+                    scriptObject1.Add("Name", bucket);
+                    scriptObject1.Add("BucketName", bucket);
+                    scriptObject1.Add("s3Event", s3Event);
+                    scriptObject1.Add("email", email);
+                    scriptObject1.Add("Subject", email.subject);
+                    scriptObject1.Add("To", email.to);
+                    scriptObject1.Add("From", email.from);
+                    scriptObject1.Add("Key", key);
+                    scriptObject1.Add("Filesize", filesize);
 
-                    var svc = new MailService();
-                    dynamic email = new ExpandoObject();
-
-                    email.subject = $"{s3Event.Bucket.Name} notification for {s3Event.Object.Key}";
-                    email.from = "noreply@alliedpayment.com";
-                    email.reply = email.from;
-                    email.to = null;
-                    email.body = $"{DateTime.UtcNow.ToString()} the bucket { s3Event.Bucket.Name} created { s3Event.Object.Key}";
-                    var template = ".allied/template.tpl";
-                    string  tFile=null;
-                    // GetObjectMetadataResponse response;
-                    // try
-                    // {
-                    //     response =
-                    //         await this.S3Client.GetObjectMetadataAsync(s3Event.Bucket.Name, s3Event.Object.Key);
-                    // }
-                    // catch (Exception e)
-                    // {
-                    //     return $"exception man! {s3Event.Bucket.Name}, {s3Event.Object.Key}" + e.ToString();
-                    // }
-
-
-                    context.Logger.LogLine( $"getting tags from {s3Event.Bucket.Name}");
-                    var tags =await this.S3Client.GetBucketTaggingAsync(new GetBucketTaggingRequest() {BucketName = s3Event.Bucket.Name });
-                    foreach(var t in tags.TagSet)
-                    {
-                        if (t.Key.Equals("allied:SendEmail:Subject", StringComparison.OrdinalIgnoreCase))
-                        {
-                            email.subject = t.Value;
-                        } else if (t.Key.Equals("allied:SendEmail:Body", StringComparison.OrdinalIgnoreCase))
-                        {
-                            email.body = t.Value;
-                        } else if (t.Key.Equals("allied:SendEmail:Template", StringComparison.OrdinalIgnoreCase))
-                        {
-                            template = t.Value;
+                    if(includeContents) {
+                        if(numbytes>0) {
+                            string data=await GetS3String(bucket, key);
+                            scriptObject1.Add("Contents", data);
                         }
+                        ll($"including {bucket} : {key} : {numbytes} bytes ");
                     }
 
-                    if (template.Length>0)
+                    var tc = new TemplateContext();
+                    tc.PushGlobal(scriptObject1);
+
+                    var scriban = Template.Parse(templateData);
+                    if (scriban.HasErrors)
                     {
-                        tFile = Path.Combine(Path.GetTempPath(), template);
-                        try
+                        foreach (var error in scriban.Messages)
                         {
-                            await S3Client.DownloadToFilePathAsync(s3Event.Bucket.Name, template, tFile, null,
-                                CancellationToken.None);
-                            string templateData = File.ReadAllText(tFile, System.Text.Encoding.ASCII);
-                            File.Delete(tFile);
-
-                            var scriptObject1 = new ScriptObject();
-                            scriptObject1.Add("Name", s3Event.Bucket.Name);
-                            scriptObject1.Add("BucketName", s3Event.Bucket.Name);
-                            scriptObject1.Add("s3Event", s3Event);
-                            scriptObject1.Add("email", email);
-                            scriptObject1.Add("Subject", email.subject);
-                            scriptObject1.Add("To", email.to);
-                            scriptObject1.Add("From", email.from);
-                            scriptObject1.Add("Key", s3Event.Object.Key);
-                            var tc = new TemplateContext();
-                            tc.PushGlobal(scriptObject1);
-
-                            var scriban = Template.Parse(templateData);
-                            if (scriban.HasErrors)
-                            {
-                                foreach (var error in scriban.Messages)
-                                {
-                                    context.Logger.LogLine(error.Message);
-                                }
-                            }
-                            else
-                            {
-                                var result = scriban.Render(tc);
-                                email.body = result;
-                            }
-
-                            if (scriptObject1["Subject"] != email.subject)
-                            {
-                                email.subject=scriptObject1["Subject"].ToString().Trim();
-                                context.Logger.LogLine("SubjectAfter:" + scriptObject1["Subject"]);
-                            }
-                            if (scriptObject1["To"] != email.to)
-                            {
-                                email.to = scriptObject1["To"];
-                                context.Logger.LogLine("ToAfter:" + email.to);
-                            }
-                            if (scriptObject1["From"] != email.from)
-                            {
-                                email.from = scriptObject1["From"];
-                                email.reply = scriptObject1["From"];
-                                context.Logger.LogLine("FromAfter:" + email.from);
-                                context.Logger.LogLine("ReplyAfter:" + email.reply);
-                            }
-                        } catch (Exception e) {
-                            context.Logger.LogLine($"No template {template} found. "+ e.Message);
+                            le($"scriban error: {error.ToString()}");
                         }
                     }
+                    else
+                    {
+                        var result = scriban.Render(tc);
+                        email.body = result;
+                    }
 
-                    if(!(email.to is null)) {
-                        var path = Path.Combine(Path.GetTempPath(), s3Event.Object.Key);
-                        context.Logger.LogLine(
-                            $"Attempting to download: {s3Event.Bucket.Name}, {s3Event.Object.Key} to {path}");
-                            await S3Client.DownloadToFilePathAsync(s3Event.Bucket.Name, s3Event.Object.Key, path, null, CancellationToken.None);
-                            var files = new List<Attachment>();
-                        context.Logger.LogLine($"Attaching {path}");
-                        files.Add(new Attachment(path));
-                        context.Logger.LogLine($"sendemail {email.to}, {email.to},{email.from}, {email.from},{email.reply}, {email.reply},{email.subject}, email.body, true, {files}" );
-                        try {
-
-                        svc.SendEmail($"{email.to}", $"{email.to}",
-                            $"{email.from}", $"{email.from}",
-                            $"{email.reply}", $"{email.reply}",
-                            $"{email.subject}", $"{email.body}", true, files );
-                        } catch (Exception e)
-                        {
-                            context.Logger.LogLine(e.Message);
-                            context.Logger.LogLine(e.StackTrace);
-                        }
-                        File.Delete(path);
-                        return $"Sent email to: {email.to} { s3Event.Bucket.Name}, { s3Event.Object.Key}";
-                    } else
-                        return $"to email null, no emails sent.";
-                return $"no emails sent.";
+                    if (scriptObject1["Subject"] != email.subject)
+                    {
+                        email.subject=scriptObject1["Subject"].ToString().Trim();
+                        ld("SubjectAfter:" + scriptObject1["Subject"]);
+                    }
+                    if (allowToOverride && scriptObject1["To"] != email.to)
+                    {
+                        email.to = scriptObject1["To"];
+                    }
+                    if (scriptObject1["From"] != email.from)
+                    {
+                        email.from = scriptObject1["From"];
+                        email.reply = scriptObject1["From"];
+                    }
+                } catch (Exception e) {
+                    le($"No template {template} found. "+ e.Message);
+                }
             }
-            catch (Exception e)
+
+            if(!(email.to is null)) {
+            if(!(email.from is null)) {
+                var path = Path.Combine(Path.GetTempPath(), key);
+                ld($"Attach download: {bucket}, {key} to {path} ({numbytes} - {filesize})");
+                await S3Client.DownloadToFilePathAsync(bucket, key, path, null, CancellationToken.None);
+                var files = new List<Attachment>();
+                files.Add(new Attachment(path));
+                ll($"sendemail {email.to}, {email.to},{email.from}, {email.from},{email.reply}, {email.reply},{email.subject}, email.body, true, {files}" );
+                try {
+
+                svc.SendEmail($"{email.to}", $"{email.to}",
+                    $"{email.from}", $"{email.from}",
+                    $"{email.reply}", $"{email.reply}",
+                    $"{email.subject}", $"{email.body}", true, files );
+                } catch (Exception e)
+                {
+                    le(e.Message);
+                    le(e.StackTrace);
+                }
+                File.Delete(path);
+                return ll($"Sent email to: {email.to} { bucket}, { key}");
+            } else {
+
+                le($"email from null, no emails sent.");
+                return "";
+            }
+            } else {
+
+                le($"email to null, no emails sent.");
+                return "";
+            }
+        }
+        catch (Exception e)
+        {
+            return le($"exception man! {bucket}, {key}",e);
+            throw;
+        }
+        }
+        // https://stackoverflow.com/questions/14488796/does-net-provide-an-easy-way-convert-bytes-to-kb-mb-gb-etc
+
+        private string GetFileSize(double byteCount)
+        {
+            string size = "0 Bytes";
+            if (byteCount >= 1073741824.0)
+                size = String.Format("{0:##.##}", byteCount / 1073741824.0) + " GB";
+            else if (byteCount >= 1048576.0)
+                size = String.Format("{0:##.##}", byteCount / 1048576.0) + " MB";
+            else if (byteCount >= 1024.0)
+                size = String.Format("{0:##.##}", byteCount / 1024.0) + " KB";
+            else if (byteCount > 0 && byteCount < 1024.0)
+                size = byteCount.ToString() + " Bytes";
+
+            return size;
+        }
+
+        private async Task<double> GetFileBytes(string bucket, string key)
+        {
+            ListObjectsRequest request = new ListObjectsRequest();
+            request.BucketName = bucket;
+            request.Prefix = key;
+            ListObjectsResponse response = S3Client.ListObjects(request);
+            long totalSize = 0;
+            foreach (S3Object o in response.S3Objects)
             {
-                context.Logger.LogLine($"Error getting object {s3Event.Object.Key} from bucket {s3Event.Bucket.Name}. Make sure they exist and your bucket is in the same region as this function.");
-                context.Logger.LogLine(e.Message);
-                context.Logger.LogLine(e.StackTrace);
-                throw;
+                totalSize += o.Size;
             }
+
+            //GetObjectMetadataResponse m;
+            //m=await this.S3Client.GetObjectMetadataAsync(bucket, key);
+            return (double)totalSize;
         }
     }
 }

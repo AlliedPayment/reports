@@ -2,8 +2,12 @@
 
 sync files on ftp to s3 bucket.
 
-## Requirements
 
+## Requirements
+* [paranoidfriend - paramiko](https://github.com/paramiko/paramiko)
+* [pysftp - utilizes paramiko and pycrypto] (https://bitbucket.org/dundeemt/pysftp/src/default/)
+
+* -- The usual for the python lambda SAMies. --
 * AWS CLI with Administrator permission
 * [Python 3 installed](https://www.python.org/downloads/)
 * [Pipenv installed](https://github.com/pypa/pipenv)
@@ -12,32 +16,36 @@ sync files on ftp to s3 bucket.
 * [SAM Local installed](https://github.com/awslabs/aws-sam-local) 
 
 
-As you've chosen the experimental Makefile we can use Make to automate Packaging and Building steps as follows:
+Yes, we've got the generated experimental Makefile.
 
 ```bash
-        ...::: Installs all required packages as defined in the Pipfile :::...
-        make install
+        make dave
+        ...::: sets service name, cleans, makes all, creating full zip package and deploys :::...
+        make clean SERVICE=FtpToS3Lambda && (mkdir FtpToS3Lambda || true) && make all SERVICE=FtpToS3Lambda && make _zip &&  make deploy
 
-        ...::: Run Pytest under tests/ with pipenv :::...
-        make test
+        ...::: Packages deps/files in build to Layer.zip :::...
+        make _zip_layer
 
-        ...::: Creates local dev environment for Python hot-reloading w/ packages:::...
+        ...::: Packages only those files in src to Small.zip :::...
+        make _zip_small
+
+        ...::: TODO HELP: Run Pytest under tests/ with pipenv :::...
+        make test  # help write tests pls
+
+        ...::: Creates local dev environment for Python hot-reloading w/ packages:::.
         make build SERVICE="FtpToS3"
 
         ...::: Run SAM Local API Gateway :::...
         make run
-
-        # or
-
         ...::: Run SAM Invoke Function :::...
         make invoke SERVICE="FirstFunction" EVENT="events/FtpToS3_event.json"
 ```
 
-
 ## Testing
 
-`Pytest` is used to discover tests created under `tests` folder - Here's how you can run tests our initial unit tests:
+PLEASE HELP - TESTS ARE MISSING.
 
+`Pytest` is used to discover tests created under `tests` folder - Here's how you can run tests our initial unit tests:
 
 ```bash
 make test
