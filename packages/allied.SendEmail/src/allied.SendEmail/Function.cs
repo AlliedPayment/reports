@@ -159,7 +159,7 @@ namespace allied.SendEmail
                 try
                 {
                     string templateData=await GetS3String(bucket, template);
-    
+
                     var scriptObject1 = new ScriptObject();
                     scriptObject1.Add("Name", bucket);
                     scriptObject1.Add("BucketName", bucket);
@@ -272,19 +272,19 @@ namespace allied.SendEmail
 
         private async Task<double> GetFileBytes(string bucket, string key)
         {
-            ListObjectsRequest request = new ListObjectsRequest();
-            request.BucketName = bucket;
-            request.Prefix = key;
-            ListObjectsResponse response = S3Client.ListObjects(request);
-            long totalSize = 0;
-            foreach (S3Object o in response.S3Objects)
-            {
-                totalSize += o.Size;
-            }
+            //ListObjectsRequest request = new ListObjectsRequest();
+            //request.BucketName = bucket;
+            //request.Prefix = key;
+            //ListObjectsResponse response = S3Client.ListObjects(request);
+            //long totalSize = 0;
+            //foreach (S3Object o in response.S3Objects)
+            //{
+            //    totalSize += o.Size;
+            //}
 
-            //GetObjectMetadataResponse m;
-            //m=await this.S3Client.GetObjectMetadataAsync(bucket, key);
-            return (double)totalSize;
+            GetObjectMetadataResponse m;
+            m=await this.S3Client.GetObjectMetadataAsync(bucket, key);
+            return (double)m.ContentLength;
         }
     }
 }
