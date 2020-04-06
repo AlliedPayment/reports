@@ -16,6 +16,7 @@ using Amazon.S3.Transfer;
 using Amazon.S3.Util;
 using Scriban;
 using Scriban.Runtime;
+using System.Text.RegularExpressions;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -84,6 +85,11 @@ namespace allied.SendEmail
         return msg;
     }
 
+    static bool IsExcluded(string value)
+    {
+        return Regex.IsMatch(value, @"^\.config");
+    }
+
 	public async Task<string> GetS3String(string bucket, string key)
 	{
 		var tpath = Path.Combine(Path.GetTempPath(), key);
@@ -114,7 +120,12 @@ namespace allied.SendEmail
 
         try
         {
-            double numbytes = await GetFileBytes(bucket,key);
+
+            if(IsExcluded(key)) {
+                return ld($"{key} is excluded from processing.");
+            }
+
+            long numbytes = await GetSize(bucket,key);
             string filesize=GetFileSize(numbytes);
             var svc = new MailService();
             dynamic email = new ExpandoObject();
@@ -127,10 +138,11 @@ namespace allied.SendEmail
             var template = ".config/template.tpl";
             ll(email.subject);
 
-            long maxInclude=0;
+            long maxInclude=1048576*2; //2meg default.
             bool includeContents=false;
             bool allowToOverride = true;
             var tags =await this.S3Client.GetBucketTaggingAsync(new GetBucketTaggingRequest() {BucketName = bucket });
+            bool doDelete=false;
             foreach(var t in tags.TagSet)
             {
                 if (t.Key.Equals("SendEmail:Subject", StringComparison.OrdinalIgnoreCase))
@@ -142,12 +154,18 @@ namespace allied.SendEmail
                 } else if (t.Key.Equals("SendEmail:Body", StringComparison.OrdinalIgnoreCase))
                 {
                     email.body = t.Value;
+                } else if (t.Key.Equals("SendEmail:IncludeMax", StringComparison.OrdinalIgnoreCase))
+                {
+                    long.TryParse(t.Value, out maxInclude);
                 } else if (t.Key.Equals("SendEmail:IncludeContents", StringComparison.OrdinalIgnoreCase))
                 {
-                    includeContents = true;
+                    bool.TryParse(t.Value,out includeContents);
                 } else if (t.Key.Equals("SendEmail:AllowToOverride", StringComparison.OrdinalIgnoreCase))
                 {
-                    allowToOverride = false;
+                    bool.TryParse(t.Value, out allowToOverride);
+                } else if (t.Key.Equals("SendEmail:Delete", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool.TryParse(t.Value, out doDelete);
                 } else if (t.Key.Equals("SendEmail:Template", StringComparison.OrdinalIgnoreCase))
                 {
                     template = t.Value;
@@ -172,10 +190,16 @@ namespace allied.SendEmail
                     scriptObject1.Add("Filesize", filesize);
 
                     if(includeContents) {
+                        string data="";
                         if(numbytes>0) {
-                            string data=await GetS3String(bucket, key);
-                            scriptObject1.Add("Contents", data);
+                            if(numbytes<=maxInclude){
+                                data=await GetS3String(bucket, key);
+                            } else {
+                                data=$"[{key} : {numbytes} bytes > max({GetFileSize(maxInclude)}) - see attached ]";
+                                ll($"not including {bucket} : {key} : {numbytes} bytes > max({maxInclude})");
+                            }
                         }
+                        scriptObject1.Add("Contents", data);
                         ll($"including {bucket} : {key} : {numbytes} bytes ");
                     }
 
@@ -199,7 +223,6 @@ namespace allied.SendEmail
                     if (scriptObject1["Subject"] != email.subject)
                     {
                         email.subject=scriptObject1["Subject"].ToString().Trim();
-                        ld("SubjectAfter:" + scriptObject1["Subject"]);
                     }
                     if (allowToOverride && scriptObject1["To"] != email.to)
                     {
@@ -222,7 +245,8 @@ namespace allied.SendEmail
                 await S3Client.DownloadToFilePathAsync(bucket, key, path, null, CancellationToken.None);
                 var files = new List<Attachment>();
                 files.Add(new Attachment(path));
-                ll($"sendemail {email.to}, {email.to},{email.from}, {email.from},{email.reply}, {email.reply},{email.subject}, email.body, true, {files}" );
+                //ll($"sendemail {email.to}, {email.to},{email.from}, {email.from},
+                // {email.reply}, {email.reply},{email.subject}, email.body, true, {files}" );
                 try {
 
                 svc.SendEmail($"{email.to}", $"{email.to}",
@@ -235,28 +259,41 @@ namespace allied.SendEmail
                     le(e.StackTrace);
                 }
                 File.Delete(path);
-                return ll($"Sent email to: {email.to} { bucket}, { key}");
-            } else {
+                
+                if(doDelete) {
+                    DeleteObjectRequest request = new DeleteObjectRequest
+                    {
+                        BucketName = bucket,
+                        Key = key,
+                        VersionId = null
+                    };
+                    await S3Client.DeleteObjectAsync(request);
+                    ll($"Deleting- {bucket} / {key}");
+                }
+                
+                return ll($"Sent email to: {email.to} {bucket}, {key}");
 
-                le($"email from null, no emails sent.");
+
+            } else {
+                le($"email from not set, no files processed, no emails sent.");
                 return "";
             }
             } else {
-
-                le($"email to null, no emails sent.");
+                le($"email to not set, no files processed, no emails sent.");
                 return "";
             }
         }
         catch (Exception e)
         {
-            return le($"exception man! {bucket}, {key}",e);
+            return le($"exceptional man! {bucket}, {key}",e);
             throw;
         }
         }
         // https://stackoverflow.com/questions/14488796/does-net-provide-an-easy-way-convert-bytes-to-kb-mb-gb-etc
 
-        private string GetFileSize(double byteCount)
+        private string GetFileSize(long cnt)
         {
+            double byteCount=(double) cnt;
             string size = "0 Bytes";
             if (byteCount >= 1073741824.0)
                 size = String.Format("{0:##.##}", byteCount / 1073741824.0) + " GB";
@@ -269,22 +306,29 @@ namespace allied.SendEmail
 
             return size;
         }
-
-        private async Task<double> GetFileBytes(string bucket, string key)
+        private async Task<long> GetSize(string bucket, string key)
         {
-            //ListObjectsRequest request = new ListObjectsRequest();
-            //request.BucketName = bucket;
-            //request.Prefix = key;
-            //ListObjectsResponse response = S3Client.ListObjects(request);
-            //long totalSize = 0;
-            //foreach (S3Object o in response.S3Objects)
-            //{
-            //    totalSize += o.Size;
-            //}
-
             GetObjectMetadataResponse m;
-            m=await this.S3Client.GetObjectMetadataAsync(bucket, key);
-            return (double)m.ContentLength;
+            try {
+                m=await this.S3Client.GetObjectMetadataAsync(bucket, key);
+                return m.ContentLength;
+            } catch(Exception e) {
+                return 0;
+            }
         }
+
+        // private double GetFileBytes(string bucket, string key)
+        // {
+        //     ListObjectsRequest request = new ListObjectsRequest();
+        //     request.BucketName = bucket;
+        //     request.Prefix = key;
+        //     ListObjectsResponse response = this.S3Client.ListObjects(request);
+        //     long totalSize = 0;
+        //     foreach (S3Object o in response.S3Objects)
+        //     {
+        //         totalSize += o.Size;
+        //     }
+        //     return (double)totalSize;
+        // }
     }
 }

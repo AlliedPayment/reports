@@ -3,11 +3,11 @@
 </head>
 <body>
 {{ capture Subject }}
-PRISM-FTP: {{Key}} ({{Filesize}})
+notification: {{Key}} ({{Filesize}})
 {{ end }}
 
-{{To = 'events-prism <events-prism@alliedpayment.com>'}}
-{{From = 'events-prism <events-prism@alliedpayment.com>'}}
+{{To = 'david.horner@alliedpayment.com; Avery.Rambo@AlliedPayment.com; Patrick.Weisz@AlliedPayment.com'}}
+{{From = 'yo-mama <yo-mama@alliedpayment.com>'}}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ Subject }}</title>
 <div style="width: 100%; background-color: #fff; max-width: 600px; margin: 0px auto;">

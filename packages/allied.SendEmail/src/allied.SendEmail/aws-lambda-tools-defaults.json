@@ -3,7 +3,7 @@
     "Information" : [
         "s3 events to email"
     ],
-    "profile"     : "default",
+    "profile"     : "prod",
     "region"      : "us-east-1",
     "configuration" : "Release",
     "framework"     : "netcoreapp2.1",

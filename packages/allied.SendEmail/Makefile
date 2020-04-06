@@ -9,15 +9,17 @@ BUCKET=allied-sendemail-alliedsendemailbucket-1cvgkx6fqvfeq
 BUCKET=allied-sendemail-alliedsendemailbucket-8o4xar2vyhwi
 STACKNAME=allied-SendEmail
 
-#PROD
-BUCKET=allied-ftp-to-s3
-BUCKET_DEPLOY=deployments-allied
-AWS_PROFILE=prod
-
 #DEBUG
 BUCKET=allied-email-bucket
 BUCKET_DEPLOY=aws-sam-cli-managed-default-samclisourcebucket-16vmd993fifjh
 AWS_PROFILE=default
+
+#PROD
+BUCKET=allied-ftp-to-s3
+BUCKET=allied-sendemail
+BUCKET_DEPLOY=deployments-allied
+AWS_PROFILE=prod
+
 
 PROFILE=${AWS_PROFILE}
 
@@ -32,6 +34,9 @@ package:
 	cd "src/allied.SendEmail"
 	dotnet lambda package
 
+dotconfig:
+	cd "src/allied.SendEmail"
+	dotnet lambda update-function-config
 
 clean:
 	rm -rf .aws-sam
@@ -46,7 +51,7 @@ config:
 	sam validate -t sam-template.yaml
 
 sam: config
-	yes | sam deploy --template-file sam-template.yaml --debug --s3-bucket ${BUCKET_DEPLOY} --stack-name $(STACKNAME) --tags janitor.optout=true
+	yes | sam deploy --template-file sam-template.yaml --debug --s3-bucket ${BUCKET_DEPLOY} --stack-name $(STACKNAME) --tags janitor.optout=true --capabilities CAPABILITY_IAM --parameter-overrides EventBucket=$(BUCKET)
 
 deploy: config
 	cd "src/allied.SendEmail"
@@ -82,13 +87,16 @@ ubu_deps:
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACKNAME)
 
-
 s3set:
+	aws s3api put-bucket-tagging --bucket ${BUCKET} --tagging file://${BUCKET}.tags
+#	echo --tagging '{TagSet: [{Key: "SendEmail:To", Value: "david.horner\@alliedpayment.com" }] }'
+
+s3set2:
 	aws s3api put-bucket-tagging --bucket ${BUCKET} --tagging '{"TagSet": [{ "Key": "designation", "Value": "confidential" }, { "Key": "department", "Value": "finance" }, { "Key": "team", "Value": "payroll" } ]}'
 	echo --tagging '{TagSet: [{Key: "SendEmail:To", Value: "david.horner\@alliedpayment.com" }] }'
 
 s3tags:
-	aws s3api get-bucket-tagging --bucket ${BUCKET}
+	aws s3api get-bucket-tagging --bucket ${BUCKET} | tee ${BUCKET}.tags
 
 list:
 	aws s3 ls ${BUCKET} | cut -d" " -f 3 
